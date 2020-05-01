@@ -1,8 +1,8 @@
 plugins {
-    id 'cpp-application'
+    id 'library'
 }
 
-application {
+library {
     dependencies {
         api project(':list')
     }
