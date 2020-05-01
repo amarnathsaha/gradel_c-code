@@ -1,171 +1,347 @@
-# GradleRIO-C
+[![Build Status](https://travis-ci.org/Tocea/gradle-cpp-plugin.svg?branch=master)](https://travis-ci.org/Tocea/gradle-cpp-plugin)
+[![Coverage Status](https://coveralls.io/repos/Tocea/gradle-cpp-plugin/badge.svg?branch=master)](https://coveralls.io/r/Tocea/gradle-cpp-plugin?branch=master)
 
-## NOTE: GradleRIO-C is now a part of GradleRIO
-GradleRIO now has both Java and Native (C,C++) support in the [root repository](https://github.com/Open-RIO/GradleRIO). This repository is discontinued.
+# gradle-cpp-plugin
+Gradle C/C++ plugin with C++ build tools interactions. This plugins launches C++ build tools and adds Gradle capabilities like :
 
-------
-Managing FRC C++ Projects, the Gradle way. Build, Develop and Deploy your FRC Code on any system, without the need for eclipse or administrative priviledges.
+1. Dedendencies management
+2. Packaging
+3. Upload
+4. DAG of tasks
+5. …
 
-Unlike the standard FRC Development Tools, GradleRIO-C can be run on any system, even if they're locked down (like school PCs). This includes installing
-the C++ toolchain (with the exception of debian linux, which requires sudo and/or `apt` access). The only requirement is the Java Virtual Machine to run Gradle itself, a Command Line, and an Internet Connection.
+## Usage
+To use the gradle-cpp-plugin, include the following in your build script:
 
-## Commands
-_Replace `gradlew` with `./gradlew` if you're on Mac or Linux_  
-`gradlew install_frc_toolchain` will install the FRC C++ Toolchain, allowing you to build for the RoboRIO (note: while this is available on linux, it is best to install it yourself with the instructions [here](http://first.wpi.edu/FRC/roborio/toolchains/FRCLinuxToolchain2016.txt) as it requires sudo access)  
-`gradlew build` will build your FRC Code  
-`gradlew build deploy` will build and deploy your FRC Code. Can also be run without build as `gradlew deploy`  
-`gradlew restart_rio_code` will restart user code running on the RoboRIO
-  
-`gradlew clion` will generate a CMakeLists.txt file for the Clion IDE. CLion w/ GradleRIO info can be found [here](https://github.com/Open-RIO/GradleRIO-C/wiki/Using-CLion-IDE).  
-`gradlew cleanClion` will delete all Clion associated files (e.g. CMakeLists.txt, .idea and cmake-build-debug)  
+**Exemple 1. Using the gradle-cpp-plugin**
 
-Run `gradlew tasks --all` for more information.
+**build.gradle**
 
 
-GradleRIO will deploy to the RoboRIO through the following preference list:  
-1: mDNS (`roborio-TEAM-frc.local`)  
-2: USB (`172.22.11.2`)  
-3: Static IP (`10.TE.AM.20`)   
-The addresses for mDNS and Static IP can be changed in the buildscript.
-
-## Quick Start
-Download the [Quick Start Sample Project](Quickstart.zip) and edit it to your own accord.
-You can get examples [here](examples/). Feel free to download them into your own project.
-
-## Custom Implementation
-Put the following at the top of your `build.gradle` file
-```
-plugins {
-    // Replace latest-version with the latest version available.
-    id "jaci.openrio.cpp.gradle.GradleRIO-C" version "latest-version"
-}
-
-apply plugin: "cpp"
-```
-You can copy-paste this [install instruction from here](https://plugins.gradle.org/plugin/jaci.openrio.cpp.gradle.GradleRIO-C)
-
-You can now setup your project just like any other Gradle C++ project.  
-You can get examples [here](examples/). Feel free to download them into your own project.
-
-Example (barebones) `build.gradle` below.
-
-```gradle
-plugins {
-    id "jaci.openrio.cpp.gradle.GradleRIO-C" version "latest-version"
-}
-apply plugin: "cpp"
-
-model {
-    frc {
-        team = "5333"
+```groovy
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
     }
-    components {
-        my_program(FRCUserProgram) {                        // This is your program, my_program
-            targetPlatform "roborio-arm"                    // Build on the RoboRIO
-            sources.cpp {
-                source.srcDirs "src"                        // Where your .cpp files are stored
-                exportedHeaders.srcDirs "include"           // Where your .h / .hpp files are stored
-                lib library: "wpilib", linkage: "static"    // Compile with WPILib
-                lib library: "talonSrx", linkage: "static"  // Compile with TalonSrx (CTRLib)
-                lib library: "navx", linkage: "static"      // Compile with NavX
-            }
-        }
-    }
+  }
+  dependencies {
+    classpath "gradle.plugin.fr.echoes.gradle.plugins:cpp-project-plugin:1.2.9"
+  }
 }
+apply plugin: "fr.echoes.gradle.cpp"
+```
+## Source sets
+
+The Cpp plugin is used to be used with this kind of structure folders
+
+```
+project
+|-> build.gradle        // output folder
+|-> build/
+|-> src/
+      |-> main/
+            |-> headers/ //fichier hpp, h…
+            |-> cpp/     // cpp,c files
+     |-> test/
+            |-> cpp/     // resources
 ```
 
-Full GradleRIO-C Spec
-```gradle
-plugins {
-    id "jaci.openrio.cpp.gradle.GradleRIO-C" version "latest-version"
+## Tasks
+
+The cpp plugin adds a number of tasks to your project, as shown below.
+
+**Table 1. Cpp plugin - tasks**
+
+| Task name        | Depends on      | Type    |  Description                                                    | 
+| ---------------- | --------------  | ------- | --------------------------------------------------------------- |
+| initOutputDirs   | -               | Task    | Initializes structure folders in project.buildDir directory      |
+| downloadLibs     | initOutputDirs  | Task    | Copies project dependencies in project.buildDir/extLib directtory |
+| compileCpp       | downloadLibs    | CppExecTask --> Exec    | Compiles source code. Needs to be configured to launch the correct tool |
+| testCompileCpp       | compileCpp    | CppExecTask --> Exec    | Compile test source code. Needs to be configured te launch the correct tool |
+| testCpp       | testCompileCpp    | CppExecTask --> Exec    | Launches test. Needs to be configured to launch the correct tool |
+| distZip       | compileCpp    | Zip    | Assembles the ZIP file if it is a c-application or a CLIB file if it is a c-library |
+| assemble       | all archives task as distZip    | Task    | Assembles the outputs of this project |
+| check       | all tests task as testCpp    | Task    | Assembles the outputs of this project |
+| build       | check and assemble    | Task    | Assembles and checks this project |
+| install       | build    | Upload    | Uploads the distZip archive in the local repository |
+| uploadArchive       | build    | Upload    | Uploads the distZip archive in a remote repository |
+
+**Figure 1. Cpp plugin -tasks**
+
+![plugin tassks](images/cppPluginGraph.jpg)
+
+
+## Dependency management
+
+The cpp plugin adds a number of dependencies configurations to your project, as shown below. It assigns those configurations to tasks such as compileCpp.
+
+**Table 2. Cpp plugin - dependency configurations**
+
+| Name        | exdends    | Used by tasks    |  Used by tasks                 | 
+| ----------- | ---------- | ---------------- | -------------------------------|
+|  compile 	  | - 	       | compileJava 	 | Compile time dependencies      |
+    
+
+**Exemple 2. External dependencies** 
+
+```groovy
+dependencies {
+    compile "fr.extern:sqlapi:4.1.4:lin_x86_64@clib"
+    // or 
+    compile group: "fr.extern", name: "sqlapi", version: "4.1.4", classifier: "lin_x86_64", ext: "clib"
 }
+```
 
-apply plugin: "cpp"
-// You can use Visual Studio for development and Gradle for building if you so desire.
-// my_programVisualStudio to generate the Visual Studio 2010+ solution file
-apply plugin: "visual-studio"
+**Exemple 3. Internal dependencies** 
 
-model {
-    frc {
-        team = "5333"
-        // The below options are optional. Values are the defaults
-        deployTimeout = 3                   // Timeout (in seconds) when trying to find the RoboRIO on the network
-        deployDirectory = "/home/lvuser"    // Directory to deploy to on the RoboRIO
-        rioIP = "10.53.33.20"               // IP Address of the RoboRIO. This is automatically calculated from team number
-        rioHost = "roborio-5333-frc.local"  // Hostname of the RoboRIO. This is automatically calculated from team number
-        robotCommand = "./my_program"       // Script to run when booting the RoboRIO. This is automatically calculated based on the components below
-        runArguments = ""                   // Arguments to add to robotCommand. No effect if robotCommand is manually set
-    }
+```groovy
+dependencies {
+    compile project(path: ":projectPath", configuration: "cArchives"
+}
+```
 
-    // This block is entirely optional. If not specified, it will use the WPILib from the WPILib Maven Repository and the default options
-    // NOTE: If you plan to use WPI from a Git repo, the FRC Toolchain Bin directory must be on your System PATH. If you installed
-    // on linux (or without GradleRIO), this is already done. If you installed on Windows or Mac with gradlew install_frc_toolchain,
-    // you must set your path before building, as WPILib's Git Repo does not look in ~/.gradle/gradlerioc/toolchain/<platform>/bin
-    // for the cross-compiling toolchain
-    wpi {
-        git = true                          // Set to true to use Git instead of the WPI Maven (github/wpilibsuite/allwpilib)
-        gitVersion = "3784b66"              // Commit, Branch or Tag to checkout before building
+## The notion of 'Projects'
 
-        eclipsePlugins = true               // Set to true to use Local WPILib instead of the WPI Maven
+*Gradle* is a **project** and **dependencies** manager. So, a gradle project must be seen as an **atomic project** which contains only :
+* sources in `src/main/headers` and `src/main/cpp`
+* test sources in `src/test/headers` and `src/test/cpp`
+* configuration file (`build.gradle` and, for exemple with *CMake*,`CMakeLists.txt` locateds **only on the project root location**.
 
-        local = true                        // Set to true if you want to use the WPILib libraries from a local path on your filesystem
-        localDirectory = file('libs/wpi')   // Set this to where you have extracted the WPILibC Zip file (subdirs: lib, include). Must be set if local is true
+The C building tool under *Gradle* have to be able to :
+* compile sources (with for example `make compile`)
+* compile testSources (with for example `make testCompile`)
+* execute test (with for example `make test`)
 
-        // Maven is the default provider for the WPILib library
-        mavenBranch = "development"         // Set which branch of the WPILib Maven to use. By default, this is 'release'
-        wpilibVersion = "2017.1.1-beta-3"     // Set which version of WPILib to use from the Maven. By default, this is '+' (latest release)
-        halVersion    = "2017.1.1-beta-3"     // Set which version of the HAL to use from the Maven. By default, this is the same as mavenWpilib
-        wpiutilVersion = "1.0.2"              // Set which version of WPIUtil to use from the Maven. By default, this is '+' (latest release)
-        ntcoreVersion = "3.1.2"               // Set which version of NTCore to use from the Maven. By default, this is '+' (latest release)
-        cscoreVersion = "0.9.1-beta-3"        // Set which version of CSCore to use from the Maven. By default, this is '+' (latest release)
+Projects examples can be found in the plugin source code in the `examples` folders.
+
+**note :** at this time, I'm not a cmake expert. I do not succes to create all this make rules with *CMake* : I only manage to compile sources and test sources with the command `make` and launching test with the command `make test` using *ctest*.
+If someone can tell me how to do this in the examples projects. All contributions will be appreciate:
+
+
+*Cmake* project are used to have a `CMakeLists.txt` file in many folders. And C project are used to have libraries notions inside a project as we can see in this project : https://github.com/jameskbride/cmake-hello-world. 
+
+### Exemple of possible refactorings for the project cmake-hello-world
+
+In this project, a library 'hello' is used by the main file `helloWorld.cpp`. So, how is the good way to use this library ? There are three ways to do that :
+
+#### **Use the library as a sources.**
+
+First choice, you considere that the 'hello' library, as the 'helloword.cpp' file is a part of the project et must be placed inside as sources :
+
+**Exemple : A single gradle project**
+
+```groovy
+cmake-hello-world
+|___build.gradle
+|___gradle.properties
+|___CmakeLists.txt
+|___src/
+    |___main/
+        |___headers/
+        |    |___Speaker.h
+        |___cpp/
+            |___Speaker.cpp
+            |___helloWord.cpp
         
-        talonSrxVersion = "4.4.1.9"         // Set which version of CTRLib (Talon SRX) to use from the maven. By default, this is '+' (latest release)
-        navxVersion = "3.0.323"             // Set which version of NavX to use from the maven. By default, this is '+' (latest version)
-    }
+```
 
-    // Use this block to add libraries that have been prebuilt (i.e. device libraries, or other code)
-    // If you're building a library from source, it is better to add that as a dependency or as another component.
-    // If the library uses GradleRIO, use the multi_project example. If it doesn't, you can add the sources as shown
-    // in the custom_library example. 
-    // This block is optional.
-    libraries {
-        some_lib(LibraryPrebuilt) {
-            headers "some_lib/include"
-            staticFile "some_lib/some_lib.a"
-            sharedFile "some_lib/some_lib.so"
-        }
-    }
+#### **Use the library as an external dependency**
 
-    components {
-        // This is where you define your actual C++ binary
-        my_program(FRCUserProgram) {
-            targetPlatform "roborio-arm"        // Build using the RoboRIO Toolchain
-            sources.cpp {
-                source {
-                    srcDirs "src"               // Where your .cpp files are stored
-                }
-                exportedHeaders {
-                    srcDirs "include"           // Where your .h/.hpp files are stored
-                }
-                lib library: "wpilib", linkage: "static"    // Compile with WPILib
-                lib library: "talonSrx", linkage: "static"  // Compile with TalonSrx
-                lib library: "navx", linkage: "static"      // Compile with NavX
+Second choice, you considere that the 'hello' library has nothing to do with the project. This library can be used by many projects, in many computers. So create a gradle project 'hello-library', place the souces inside, and upload it in an artifact reposotory manager as [Nexus](http://www.sonatype.com/nexus/product-overview) for example.
 
-                lib library: "some_lib", linkage: "static"  // From our libraries {} block
-            }
-        }
-    }
+Then in the project cmake-hello-world, use it as a dependency.
+
+**Exemple : use hello dependency in the build.gradle file**
+```groovy
+dependencies {
+    compile ("com.example:hello-library:1.0@clib"
 }
 ```
 
-## The Windows Subsystem For Linux
-GradleRIO-C supports the Windows Subsystem for Linux, a Beta feature that can be run with Windows 10. For this to work, however, you need the following requirements:
-- Windows Build 14986+ (Windows Creator Update, Available now with the Windows Insider Program)
-- 4GB+ Physical Memory, 4GB - 8GB Windows Pagefile
+#### **Use this library as a sub-module project**
 
-The following packages are required to be installed on WSL assuming a clean image:
-- `sudo apt-get install git build-essential`
-- `sudo apt-get install gcc-multilib g++-multilib`
-- Java 8 update 6+ (you can get the instructions [here, just ignore the gradle part if you want to use the gradle wrapper provided](https://github.com/Microsoft/BashOnWindows/issues/196#issuecomment-225305971))
+Third choice, The 'hello' library has nothing to in this project. but this library is close of the project. The project and the library are a part of the same product. In this case, It can be a good idea te create a gradle project for this product which contain sub-modules (the 'hello' library and the 'cmake-hello-world' project).
 
-Please note that, as of current, the Windows Subsystem for Linux does **NOT** support the FRC Toolchain. This may change for the 2017 season, however using the 2016 branch is not possible. Sorry.
+**Exemple : gradle multi-modules project**
+```groovy
+exemple-project
+|___settings.gradle
+|___gradle.properties
+|___build.gradle
+|___hello-library
+|   |___src/…
+|   |___CMakeLists.txt
+|   |___build.gradle
+|___cmake-hello-world
+    |___src/…
+    |___CMakeLists.txt
+    |___build.gradle
+```
+
+And adding in the cmake-hello-world/build.gradle the dependency to the 'hello-library'
+
+```groovy
+dependencies {
+    compile project(path: ":hello-library", configuration: "cArchives")
+}
+```
+
+#### **In Conclusion** :
+
+The gradle cpp plugin create a real notion of **Projects** and **libraries**. User of this plugins have to have in minds these notions when they create their projects configurations with usual C tools (Make, CMake…).
+
+You can find the 3 possibles solutions in the 'exemplek folders in the source code.
+
+## Extension properties
+
+The Java plugin adds a number of conventions properties to the project, shown below. You can use these properties in your build script as though they were properties of the project object. 
+
+**Table 3. Cpp plugin - Project projerties**
+    
+| Name        | Type       | Default value    |  Description          | 
+| ----------- | ---------- | ---------------- | -------------------------------|
+|  cpp 	  | CppPluginExtension 	       | - 	 | Contains the configuration of cpp      |
+    
+**Exemple 2. Cpp extension exemple** 
+
+```groovy
+cpp {
+ // some contents
+}
+```
+
+**Table 4. Cpp plugin - CppPluginExtension projerties**
+    
+| Name        | Type    | Default value    |  Description          | 
+| ----------- | ---------- | ---------------- | -------------------------------|
+|  applicationType | ApplicationType | ApplicationType.clibrary | Type of project : ApplicationType.clibrary or ApplicationType.capplication |
+|  classifier | String | classifier | Allows to distinguish artifacts for a same version. |
+|  buildTasksEnabled | boolean | true | Activates or desactivates the compileCpp, testCompileCpp, testCpp tasks |
+|  exec | CppExecConfiguration | - | Configures the builds tasks |
+
+**Exemple 4. Cpp extension exemple** 
+
+```groovy
+cpp {
+  applicationType = "capplication"
+  classifier = "lin_gcc_x32_64"
+  buildTasksEnabled = true
+  exec.with {
+    // some contents
+  }
+}
+```
+
+**Table 5. Cpp plugin - CppExecConfiguration projerties**
+    
+| Name        | Type    | Default value    |  Description          | 
+| ----------- | ---------- | ---------------- | -------------------------------|
+|  execPath | String | "" | Path of the executable for all tasks of type CppExecTask |
+| env       | java.util.Map | null | Environment variables map for all tasks of type CppExecTask |
+| ${task.name}ExecPath | String | "" | Path of the executable for the task ${task.name} of type CppExecTask (overrides the execPath value)|
+| ${task.name}BaseArgs | String | null | Arguments of the command launched by the task ${task.name} of type CppExecTask |
+| ${task.name}Args | String | "" | More arguments of the command launched by the task  ${task.name} of type CppExecTask |
+| ${task.name}ExecWorkingDir | String | null | File location to execute the command launched by the task ${task.name} of type CppExecTask |
+| ${task.name}StandardOutput | OutputStream  | null | Output stream used to store the result of the command launched by the task ${task.name} of type CppExecTask |
+
+**Exemple 5. CppExecConfiguration exemple** 
+
+```groovy
+cpp {
+  exec.with {
+    execPath = 'echo' 
+    env = [JAVA_HOME: "/usr/lib/jvm/java-8-oracle"]
+    compileCppExecPath = "make"
+    compileCppBaseArgs = "compile"
+    compileCppExecWorkingDir = "build"
+  }
+}
+```
+## Clean
+The clean task is an instance of Delete. It simply removes the directory denoted by its ${project.buildDir} property. 
+
+## modules 
+To simplify the configurations of the C build tools, some modules are provideds. At this time only cmake modules are provided.
+
+Provided lists : 
+* [CMake modules](docs/modules/cmake-modules.md)
+
+## Exemple of configuration with Cmake
+
+**Exemple 6. Exemple of build.gradle to use cmake** 
+
+```groovy
+
+task launchCMake(type: Exec, group: "init") {
+
+    workingDir = buildDir
+    executable = "cmake"
+    args  ".."
+}
+
+compileCpp.dependsOn launchCMake
+
+cpp {
+  applicationType = "clibrary"
+  exec.with {
+    execPath = 'echo' 
+    compileCppExecPath = "make"
+    compileCppBaseArgs = "compile"
+    compileCppExecWorkingDir = "build"
+  }
+}
+```
+
+Then launch the build.
+
+```
+> gradle build
+```
+
+An exemple of console output.
+
+```
+extern:externlib:clean
+:extern:externlib:initOutputDirs
+:extern:externlib:downloadLibs
+:extern:externlib:launchCMake
+-- The C compiler identification is GNU 4.9.2
+-- The CXX compiler identification is GNU 4.9.2
+-- Check for working C compiler: /usr/bin/cc
+-- Check for working C compiler: /usr/bin/cc -- works
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++
+-- Check for working CXX compiler: /usr/bin/c++ -- works
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+CMake Warning (dev) in CMakeLists.txt:
+  No cmake_minimum_required command is present.  A line of code such as
+
+    cmake_minimum_required(VERSION 3.0)
+
+  should be added at the top of the file.  The version specified may be lower
+  if you wish to support older CMake versions for this project.  For more
+  information run "cmake --help-policy CMP0000".
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /where/it/should/be/build
+:extern:externlib:validateCMake
+:extern:externlib:compileCpp
+  …
+:extern:externlib:copyHeaders
+:extern:externlib:cppArchive UP-TO-DATE
+:extern:externlib:distTar
+:extern:externlib:distZip
+:extern:externlib:assemble
+:extern:externlib:testCompileCpp
+
+:extern:externlib:testCpp
+
+:extern:externlib:check
+:extern:externlib:build
+```
+
