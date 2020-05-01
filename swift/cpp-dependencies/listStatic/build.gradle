@@ -1,7 +1,0 @@
-apply from: project(':list').file('common.gradle')
-
-library {
-    linkage = [ Linkage.STATIC ]
-    source.from project(':list').file('src/main/cpp')
-    publicHeaders.from project(':list').file('src/main/public')
-}

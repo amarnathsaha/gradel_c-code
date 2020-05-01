@@ -1,7 +1,0 @@
-rootProject.name = 'list'
-
-sourceControl {
-    gitRepository("../release-plugin") {
-        producesModule("org.gradle.samples:release")
-    }
-}

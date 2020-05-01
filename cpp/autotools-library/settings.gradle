@@ -1,4 +1,0 @@
-include ':app', ':curl'
-
-// This is included for convenience. Usually this plugin would be published to a plugin repository instead
-includeBuild "build-wrapper-plugin"

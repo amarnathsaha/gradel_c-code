@@ -1,7 +1,0 @@
-rootProject.name = 'app'
-
-sourceControl {
-    gitRepository("https://github.com/gradle/native-samples-swift-library.git") {
-        producesModule("org.gradle.swift-samples:utilities")
-    }
-}

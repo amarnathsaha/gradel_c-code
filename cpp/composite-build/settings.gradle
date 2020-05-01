@@ -1,4 +1,0 @@
-rootProject.name = 'app'
-
-includeBuild 'list-library'
-includeBuild 'utilities-library'

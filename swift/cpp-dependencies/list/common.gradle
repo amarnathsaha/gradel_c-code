@@ -1,3 +1,0 @@
-// Any configuration common to both the shared and static variants of this library
-
-apply plugin: 'cpp-library'

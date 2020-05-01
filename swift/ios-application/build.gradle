@@ -1,7 +1,0 @@
-plugins {
-    id 'swift-application'
-    id 'org.gradle.samples.ios-application' version '1.0'
-    id 'xcode'
-}
-
-group = "org.gradle.samples"
