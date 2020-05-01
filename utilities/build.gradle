@@ -1,5 +1,5 @@
 plugins {
-    id 'cpp-aplication'
+    id 'cpp-library'
 }
 
 library {
