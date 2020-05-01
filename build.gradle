@@ -1,154 +1,109 @@
-/*
- * Copyright 2013-2014 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-
-buildscript {
-    repositories {
-
-        maven {
-            url "https://plugins.gradle.org/m2/"
-        }
-    }
-    dependencies {
-        classpath "com.gradle.publish:plugin-publish-plugin:0.9.1"
-    }
-}
-
 plugins {
-    id "org.sonarqube" version "2.0.1"
-    id "com.github.kt3k.coveralls" version "2.4.0"
-    id "com.gradle.plugin-publish" version "0.9.1"
-    id "idea"
-    id "maven"
-    id "jacoco"
-    id "groovy"
+    id 'com.gradle.plugin-publish' version '0.10.0'
+    id 'java-gradle-plugin'
+    id 'idea'
+    id 'maven-publish'
+    id 'groovy'
 }
-
-apply from: "$gradleConfigUrl/git.gradle" 	// populates $branch
-
-apply from: "$gradleConfigUrl/init.gradle"	// initialize global variables
-apply from: "$gradleConfigUrl/eclipse.gradle"
-apply from: "$gradleConfigUrl/sonar.gradle"
-apply from: "$gradleConfigUrl/nexus.gradle"
-apply from: "$gradleConfigUrl/findbugs.gradle"
-apply from: "$gradleConfigUrl/jacoco.gradle"
-apply from: "$gradleConfigUrl/javadoc-aggregate.gradle"
-apply from: "$gradleConfigUrl/groovydoc-aggregate.gradle"
-apply from: "$gradleConfigUrl/documentation-zip.gradle"
-
 
 repositories {
+    maven {
+        url "https://plugins.gradle.org/m2/"
+    }
     mavenLocal()
-    mavenCentral()
-    jcenter()
 }
-
-
-compileJava {
-    sourceCompatibility = javaVersion
-    targetCompatibility = javaVersion
-}
-compileGroovy {
-    sourceCompatibility = javaVersion
-    targetCompatibility = javaVersion
-}
-
-
-configurations {
-    groovyDoc.extendsFrom runtime
-}
-
-
 
 dependencies {
-    compile gradleApi()
-    compile localGroovy()
-    compile "commons-io:commons-io:$commonsioVersion"
+    api 'com.google.code.gson:gson:2.8.6'
+    api 'edu.wpi.first:gradle-cpp-vscode:0.12.0'
 
-    testCompile("org.spockframework:spock-core:$spockVersion") {
-        exclude module: 'groovy-all'
+    api 'edu.wpi.first:native-utils:2020.7.2'
+
+    testImplementation('org.spockframework:spock-core:1.2-groovy-2.5') {
+        exclude group: 'org.codehaus.groovy'
     }
-    testRuntime("com.athaydes:spock-reports:$spockSeportVersion"){
-        exclude module: 'groovy-all'
-    }
-
-    //documentation
-    dependencies {
-        groovyDoc "org.codehaus.groovy:groovy-groovydoc:$groovyVersion"
-        groovyDoc "org.codehaus.groovy:groovy-ant:$groovyVersion"
-    }
+    testImplementation gradleTestKit()
 }
 
+archivesBaseName = "GradleRIO"
 
-task sourceJar(type: Jar) {
-    group 'Build'
-    description 'An archive of the source code'
-    classifier 'sources'
-    from sourceSets.main.allSource
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
 }
 
-task wrapper(type: Wrapper) {
-    gradleVersion = gradeleWrapper
+compileGroovy {
+    sourceCompatibility = '8'
+    targetCompatibility = '8'
 }
 
+allprojects {
+    group = "edu.wpi.first"
+    version = "2020.3.2"
 
-groovydoc {
-    groovyClasspath = configurations.groovyDoc
-}
-
-jacoco {
-    toolVersion = '0.7.1.201405082137'
-}
-
-
-jacocoTestReport {
-    reports {
-        html.enabled = true
-        xml.enabled = true
-        csv.enabled = false
+    if (project.hasProperty('publishVersion')) {
+        version = project.publishVersion
     }
 }
 
-
-
-// The configuration example below shows the minimum required properties
-// configured to publish your plugin to the plugin portal
 pluginBundle {
-    website = 'http://tocea.github.io/gradle-cpp-plugin/'
-    vcsUrl = 'https://github.com/Tocea/gradle-cpp-plugin'
-    description = 'gradle plugin for c++'
-    tags = ['cpp', 'c++']
+    website = 'https://github.com/wpilibsuite/GradleRIO'
+    vcsUrl = 'https://github.com/wpilibsuite/GradleRIO'
+    description = 'Managing FRC projects, the Gradle way (2019+)'
+    tags = ['frc', 'wpilib', 'gradlerio']
+}
 
+gradlePlugin {
     plugins {
-        cppPlugin {
-            id = 'fr.echoes.gradle.cpp'
-            displayName = 'gradle plugin for c++'
+        gradleRio {
+            id = 'edu.wpi.first.GradleRIO'
+            displayName = 'GradleRIO'
+            implementationClass = 'edu.wpi.first.gradlerio.GradleRIOPlugin'
         }
     }
 }
 
+apply from: 'versionupdates.gradle'
 
+def examplesFolder = file("$rootDir/examples")
 
-/////////////////// for system testings ////////////////////////
+tasks.register('PatchExamples') {
+    doLast {
+        String regex = "(id\\s*?[\\\"|\\']edu\\.wpi\\.first\\.GradleRIO[\\\"|\\'].*?version\\s*?[\\\"|\\'])(.+?)([\\\"|\\'])";
 
-apply from: 'systemTests.gradle'
+        examplesFolder.eachFile { File file ->
+            if (file.isDirectory() && file.name != '_archived') {
+                def buildGradleFile = new File(file, 'build.gradle')
+                if (buildGradleFile.exists() && buildGradleFile.isFile()) {
+                    def text = buildGradleFile.text
+                    text = text.replaceAll(regex, "id \"edu.wpi.first.GradleRIO\" version \"${version}\"")
+                    buildGradleFile.text = text
+                }
+            }
+        }
+    }
+}
 
-task systemTests(dependsOn: install)
+task zipExamples(dependsOn: PatchExamples)
 
-systemTests.dependsOn helloWorldTest
-systemTests.dependsOn helloWordWithDependenciesTest
-systemTests.dependsOn helloWorldMulitModulesTest
+examplesFolder.eachFile { File file ->
+    if (file.isDirectory() && file.name != '_archived') {
+        task "zipExample${file.name}"(type: Zip) {
+            from(file) {
+                archiveFileName = "${file.name}.zip"
+                exclude 'build/'
+                exclude '.gradle/'
+            }
 
+            zipExamples.dependsOn it
+            it.dependsOn PatchExamples
+        }
+    }
+}
+
+jar.finalizedBy zipExamples
+
+wrapper {
+    gradleVersion = '6.0'
+    distributionType = Wrapper.DistributionType.BIN
+}
